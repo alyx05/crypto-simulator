@@ -1,0 +1,35 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      # web's published port lives here, not on the web service below --
+      # see the network_mode note on web for why.
+      - "3000:80"
+    volumes:
+      - merkelrex-data:/app/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    # Shares api's network namespace directly (loopback), rather than
+    # talking to it over the bridge network as a separate container would.
+    # This sidesteps a container-to-container bridge networking issue
+    # specific to this Codespaces/sandboxed Docker environment, where
+    # bridge traffic between containers times out even though the
+    # container itself is reachable fine via a published port or loopback.
+    # A service using network_mode: service:X cannot declare its own
+    # "ports" -- that's why 3000:80 is declared on api above instead.
+    network_mode: "service:api"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  # Named volume so wallet/order state (data/merkelrex.db) survives
+  # `docker compose down` / container recreation. Docker seeds it from the
+  # image's /app/data the first time this volume is created.
+  merkelrex-data:
